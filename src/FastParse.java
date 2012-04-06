@@ -7,29 +7,29 @@ public class FastParse {
 	private Map<String, Double> varMap = new HashMap<String, Double>();
 	private Map<String, Op> opMap = new HashMap<String, Op>();
 
-	public static void main(String[] args) {
-		FastParse p = new FastParse();
-		ParseNode pn = p.Parse("((t/t)*(2))");
-		p.SetVariable("t", 1);
-		p.SetVariable("p3", 1);
-		p.SetVariable("p1", 1);
-		p.SetVariable("p2", 1);
-
-		int p1 = 1;
-		int p2 = 1;
-		int p3 = 1;
-
-		for (int t = 1; t < 1000000; ++t) {
-			p.SetVariable("t", t);
-			int r2 = (int) pn.Eval();
-			int r = (int) t / t * 2;
-			if (r != r2) {
-				System.out.println(t + " : " + r + " - " + r2 + " = "
-						+ (r - r2));
-				pn.Eval();
-			}
-		}
-	}
+//	public static void main(String[] args) {
+//		FastParse p = new FastParse();
+//		ParseNode pn = p.Parse("( (p1 * t) * ( (p2 * t) >> 5 | t >> 8)) >> ( (p3 * t) >> 16)");
+//		p.SetVariable("t", 1);
+//		p.SetVariable("p3", 1);
+//		p.SetVariable("p1", 1);
+//		p.SetVariable("p2", 1);
+//
+//		int p1 = 1;
+//		int p2 = 1;
+//		int p3 = 1;
+//
+//		for (int t = 1; t < 1000000; ++t) {
+//			p.SetVariable("t", t);
+//			int r2 = (int) pn.Eval();
+//			int r = (int) ( (p1 * t) * ( (p2 * t) >> 5 | t >> 8)) >> ( (p3 * t) >> 16);
+//			if (r != r2) {
+//				System.out.println(t + " : " + r + " - " + r2 + " = "
+//						+ (r - r2));
+//				pn.Eval();
+//			}
+//		}
+//	}
 
 	public interface Op {
 		int Ex(double a, double b);
