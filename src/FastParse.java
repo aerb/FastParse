@@ -4,25 +4,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class FastParse {
-	private Map<String, Double> varMap = new HashMap<String, Double>();
-	private Map<String, Op> opMap = new HashMap<String, Op>();
+	static private Map<String, Op> opMap;
 
 	public interface Op {
 		int Ex(double a, double b);
 	}
 
-	public void SetVariable(String key, double value) {
-		varMap.put(key, new Double(value));
-	}
-
-	public void SetVariable(String key, Double value) {
-		varMap.put(key, value);
-	}
-
-	private String[][] operators = { { "|" }, { "^" }, { "&" }, { ">>", "<<" },
-			{ "+", "-" }, { "*", "/", "%" } };
-
-	public void InitializeOperators() {
+	static {
+		opMap = new HashMap<String, Op>();
 		opMap.put("|", new Op() {
 			public int Ex(double a, double b) {
 				return (int) a | (int) b;
@@ -75,24 +64,71 @@ public class FastParse {
 		});
 	}
 
-	public FastParse() {
-		InitializeOperators();
+	private class ParseNode {
+		private Op o;
+		private ParseNode p0;
+		private ParseNode p1;
+		private int intValue;
+		private String variableKey = null;
+		private parseType ptype = null;
+	
+		private ParseNode(int value) {
+			intValue = value;
+			ptype = parseType.Value;
+		}
+	
+		public ParseNode(Op o, ParseNode p0, ParseNode p1) {
+			this.o = o;
+			this.p0 = p0;
+			this.p1 = p1;
+			ptype = parseType.Expression;
+		}
+	
+		private ParseNode(String s) {
+			variableKey = s;
+			ptype = parseType.Variable;
+		}
+	
+		private double eval() {
+			switch (ptype) {
+			case Expression:
+				return o.Ex(p0.eval(), p1.eval());
+			case Value:
+				return intValue;
+			case Variable:
+				return varMap.get(variableKey).doubleValue();
+			default:
+				break;
+			}
+			return 0;
+		}
+	}
+	
+	private Map<String, Double> varMap;
+	
+	private String[][] operators = { { "|" }, { "^" }, { "&" }, { ">>", "<<" },
+	{ "+", "-" }, { "*", "/", "%" } };
+	private char lb = '(', rb = ')';
+	
+	private Pattern num = Pattern.compile("[0-9()]+");
+	private Pattern hex = Pattern.compile("\\b0[xX][0-9a-fA-F]+\\b");
+	private Pattern var = Pattern.compile("[a-zA-Z0-9()]+");
+
+	private ParseNode rootNode = null;
+
+	private enum parseType {
+		Expression, Value, Variable
 	}
 
-	public char lb = '(';
-	public char rb = ')';
-	
+	private enum direction {
+		left_to_right, right_to_left
+	}
 
-	Pattern num = Pattern.compile("[0-9()]+");
-	Pattern hex = Pattern.compile("\\b0[xX][0-9a-fA-F]+\\b");
-	Pattern var = Pattern.compile("[a-zA-Z0-9()]+");
-	private ParseNode _rootNode = null;
+	public FastParse() {
+		varMap = new HashMap<String, Double>();
+	}
 
-	public enum parseType {
-		Expression, Value, Variable
-	};
-
-	public parseType DetermineParseType(String s) {
+	private parseType determineParseType(String s) {
 		Matcher numMatcher = num.matcher(s);
 		Matcher hexMatcher = hex.matcher(s);
 		Matcher varMatcher = var.matcher(s);
@@ -103,34 +139,20 @@ public class FastParse {
 		return parseType.Expression;
 	}
 
-	public String RemoveRedundantBrackets(String s) {
-		for (int i = 0; i < s.length(); ++i) {
-			char c = s.charAt(i);
-			if (c == lb) {
-				int closing = FindClosingBracket(s, i);
-				if (i == 0 && closing == s.length() - 1) {
-					s = s.substring(i + 1, closing);
-					i = -1;
-				}
-			}
-		}
-		return s;
+	public double evaluate() {
+		return rootNode != null ? rootNode.eval() : 0;
 	}
 
-	enum direction {
-		left_to_right, right_to_left
-	};
-
-	public int FindClosingBracket(String s, int index) {
-		return FindClosingBracket(s, index, direction.left_to_right);
+	private int findClosingBracket(String s, int index) {
+		return findClosingBracket(s, index, direction.left_to_right);
 	}
 
-	public int FindClosingBracket(String s, int index, direction d) {
+	private int findClosingBracket(String s, int index, direction d) {
 		int depth = 0;
 		int strlen = s.length();
 		switch (d) {
 		case left_to_right:
-			for (int i = index; i < strlen ; ++i) {
+			for (int i = index; i < strlen; ++i) {
 				char c = s.charAt(i);
 				if (c == lb)
 					++depth;
@@ -142,7 +164,7 @@ public class FastParse {
 			}
 			break;
 		case right_to_left:
-			for (int i = index; i >= 0 ; --i) {
+			for (int i = index; i >= 0; --i) {
 				char c = s.charAt(i);
 				if (c == rb)
 					++depth;
@@ -159,15 +181,16 @@ public class FastParse {
 		return -1;
 	}
 
-	public int[] FindNextOperator(String s) {
+	private int[] findNextOperator(String s) {
 		int strlen = s.length();
 		for (String[] ops : operators) {
 			for (int i = strlen - 1; i >= 0; --i) {
 				for (String op : ops) {
 					int oplen = op.length();
-					String c = s.substring(i, (i + oplen > strlen) ? strlen : i + oplen);
+					String c = s.substring(i, (i + oplen > strlen) ? strlen : i
+							+ oplen);
 					if (c.charAt(0) == rb) {
-						i = FindClosingBracket(s, i, direction.right_to_left);
+						i = findClosingBracket(s, i, direction.right_to_left);
 					}
 					if (i < 0)
 						return null;
@@ -182,28 +205,21 @@ public class FastParse {
 		return null;
 	}
 
-	public String[] SplitExpression(String s, int begin, int end) {
-		String s0 = s.substring(0, begin);
-		String s1 = s.substring(begin, end);
-		String s2 = s.substring(end);
-		return new String[] { s0, s1, s2 };
-	}
-
-	public ParseNode Parse(String s) {
+	private ParseNode parse(String s) {
 		ParseNode p0 = null, p1 = null;
 
 		s = s.replace(" ", "");
 		String[] subExp = null;
 
-		s = RemoveRedundantBrackets(s);
-		parseType t = DetermineParseType(s);
+		s = removeRedundantBrackets(s);
+		parseType t = determineParseType(s);
 		switch (t) {
 		case Expression:
-			int[] result = FindNextOperator(s);
+			int[] result = findNextOperator(s);
 			if (result != null) {
-				subExp = SplitExpression(s, result[0], result[1]);
-				p0 = Parse(subExp[0]);
-				p1 = Parse(subExp[2]);
+				subExp = splitExpression(s, result[0], result[1]);
+				p0 = parse(subExp[0]);
+				p1 = parse(subExp[2]);
 				return (p0 != null && p1 != null) ? new ParseNode(
 						opMap.get(subExp[1]), p0, p1) : null;
 			}
@@ -216,11 +232,10 @@ public class FastParse {
 		default:
 			break;
 		}
-
 		return null;
 	}
 
-	public int parseValue(String s) {
+	private int parseValue(String s) {
 		if (hex.matcher(s).matches()) {
 			s = s.replaceAll("\\b0[xX]", "");
 			return Integer.parseInt(s, 16);
@@ -228,52 +243,37 @@ public class FastParse {
 			return Integer.parseInt(s);
 	}
 
-	public class ParseNode {
-		private Op o;
-		private ParseNode p0;
-		private ParseNode p1;
-		private int intValue;
-		private String variableKey = null;
-		private parseType ptype = null;
-
-		public ParseNode(Op o, ParseNode p0, ParseNode p1) {
-			this.o = o;
-			this.p0 = p0;
-			this.p1 = p1;
-			ptype = parseType.Expression;
-		}
-
-		public ParseNode(int value) {
-			intValue = value;
-			ptype = parseType.Value;
-		}
-
-		public ParseNode(String s) {
-			variableKey = s;
-			ptype = parseType.Variable;
-		}
-
-		public double Eval() {
-			switch (ptype) {
-			case Expression:
-				return o.Ex(p0.Eval(), p1.Eval());
-			case Value:
-				return intValue;
-			case Variable:
-				return varMap.get(variableKey).doubleValue();
-			default:
-				break;
+	private String removeRedundantBrackets(String s) {
+		for (int i = 0; i < s.length(); ++i) {
+			char c = s.charAt(i);
+			if (c == lb) {
+				int closing = findClosingBracket(s, i);
+				if (i == 0 && closing == s.length() - 1) {
+					s = s.substring(i + 1, closing);
+					i = -1;
+				}
 			}
-			return 0;
 		}
+		return s;
 	}
 
-	public double evaluate() { 
-		return _rootNode != null ? _rootNode.Eval() : 0;
+	public void setVariable(String key, double value) {
+		varMap.put(key, new Double(value));
+	}
+
+	public void setVariable(String key, Double value) {
+		varMap.put(key, value);
+	}
+
+	private String[] splitExpression(String s, int begin, int end) {
+		String s0 = s.substring(0, begin);
+		String s1 = s.substring(begin, end);
+		String s2 = s.substring(end);
+		return new String[] { s0, s1, s2 };
 	}
 
 	public boolean tryParse(String expression) {
-		_rootNode = Parse(expression);
-		return _rootNode != null;
+		rootNode = parse(expression);
+		return rootNode != null;
 	}
 }
