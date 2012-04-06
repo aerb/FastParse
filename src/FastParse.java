@@ -43,7 +43,6 @@ public class FastParse {
 		varMap.put(key, value);
 	}
 
-	// private String[] operators = {"|","^","&",">>","<<","+","-","*","/","%"};
 	private String[][] operators = { { "|" }, { "^" }, { "&" }, { ">>", "<<" },
 			{ "+", "-" }, { "*", "/", "%" } };
 
