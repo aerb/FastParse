@@ -9,7 +9,7 @@ public class FastParse {
 
 	public static void main(String[] args) {
 		FastParse p = new FastParse();
-		ParseNode pn = p.Parse("t/t*2");
+		ParseNode pn = p.Parse("((t/t)*(2))");
 		p.SetVariable("t", 1);
 		p.SetVariable("p3", 1);
 		p.SetVariable("p1", 1);
@@ -103,8 +103,9 @@ public class FastParse {
 		InitializeOperators();
 	}
 
-	public String ob = "(";
-	public String cb = ")";
+	public char lb = '(';
+	public char rb = ')';
+	
 
 	Pattern num = Pattern.compile("[0-9()]+");
 	Pattern hex = Pattern.compile("\\b0[xX][0-9a-fA-F]+\\b");
@@ -127,8 +128,8 @@ public class FastParse {
 
 	public String RemoveRedundantBrackets(String s) {
 		for (int i = 0; i < s.length(); ++i) {
-			String c = s.substring(i, i + 1);
-			if (c.compareTo(ob) == 0) {
+			char c = s.charAt(i);
+			if (c == lb) {
 				int closing = FindClosingBracket(s, i);
 				if (i == 0 && closing == s.length() - 1) {
 					s = s.substring(i + 1, closing);
@@ -139,37 +140,64 @@ public class FastParse {
 		return s;
 	}
 
+	enum direction {
+		left_to_right, right_to_left
+	};
+
 	public int FindClosingBracket(String s, int index) {
+		return FindClosingBracket(s, index, direction.left_to_right);
+	}
+
+	public int FindClosingBracket(String s, int index, direction d) {
 		int depth = 0;
-		for (int i = index; i < s.length(); ++i) {
-			String c = s.substring(i, i + 1);
-			if (c.compareTo(ob) == 0)
-				++depth;
-			else if (c.compareTo(cb) == 0)
-				--depth;
-			if (depth == 0) {
-				return i;
+		int strlen = s.length();
+		switch (d) {
+		case left_to_right:
+			for (int i = index; i < strlen ; ++i) {
+				char c = s.charAt(i);
+				if (c == lb)
+					++depth;
+				else if (c == rb)
+					--depth;
+				if (depth == 0) {
+					return i;
+				}
 			}
+			break;
+		case right_to_left:
+			for (int i = index; i >= 0 ; --i) {
+				char c = s.charAt(i);
+				if (c == rb)
+					++depth;
+				else if (c == lb)
+					--depth;
+				if (depth == 0) {
+					return i;
+				}
+			}
+			break;
+		default:
+			break;
 		}
 		return -1;
 	}
 
 	public int[] FindNextOperator(String s) {
+		int strlen = s.length();
 		for (String[] ops : operators) {
-			for (int i =  s.length() - 1; i >= 0 ; --i) {
+			for (int i = strlen - 1; i >= 0; --i) {
 				for (String op : ops) {
-					int opSize = op.length();
-					String c = s.substring((i - opSize <= 0) ? i
-							: i - opSize, i);
-					if (c.contains(ob)) {
-						i = FindClosingBracket(s, i);
+					int oplen = op.length();
+					String c = s.substring(i, (i + oplen > strlen) ? strlen : i + oplen);
+					if (c.charAt(0) == rb) {
+						i = FindClosingBracket(s, i, direction.right_to_left);
 					}
 					if (i < 0)
-						return new int[] {};
+						return null;
 
 					boolean found = c.compareTo(op) == 0;
 					if (found) {
-						return new int[] { i, i + opSize };
+						return new int[] { i, i + oplen };
 					}
 				}
 			}
@@ -200,8 +228,7 @@ public class FastParse {
 				p0 = Parse(subExp[0]);
 				p1 = Parse(subExp[2]);
 				return (p0 != null && p1 != null) ? new ParseNode(
-						opMap.get(subExp[1]), p0, p1) : 
-							null;
+						opMap.get(subExp[1]), p0, p1) : null;
 			}
 			break;
 		case Value:
